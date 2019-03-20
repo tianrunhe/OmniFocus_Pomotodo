@@ -48,3 +48,26 @@ tell application "OmniFocus"
     end repeat
   end tell
 end tell
+
+on get_omnifocus_tasks(folder_name, flagged_needed, tag_list)
+	tell application "OmniFocus"
+		tell default document
+			set projectList to flattened projects of folder named folder_name
+			repeat with aProject in projectList
+				if flagged_needed is true then
+					set taskList to (flattened tasks of aProject whose flagged is true and completed is false)
+					repeat with aTask in taskList
+						set description to name of aTask
+						display dialog "The name of the file is: " & description
+					end repeat
+				else
+					set taskList to (flattened tasks of aProject whose completed is false)
+					repeat with aTask in taskList
+						set description to name of aTask
+						display dialog "The name of the file is: " & description
+					end repeat
+				end if
+			end repeat
+		end tell
+	end tell
+end get_omnifocus_tasks
