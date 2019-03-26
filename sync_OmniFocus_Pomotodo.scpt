@@ -1,9 +1,23 @@
 property folder_name : "Work"
 property flagged_needed : true
 property tag_filter : missing value
-property token : "abc"
+property token : "token"
 
 set candidate_tasks to get_omnifocus_tasks(folder_name, flagged_needed, tag_filter)
+
+set pomotodos to get_todos(false)
+
+on get_todos(completed_needed)
+	set todos to {}
+	set getCommand to "curl --request 'GET' --header 'Authorization: token " & token & "' https://api.pomotodo.com/1/todos?completed=" & completed_needed
+	set getResponse to do shell script getCommand
+	--set srcJson to read POSIX file (POSIX path of (path to home folder) & "null/todos.json")
+	set srcJson to getResponse
+	tell application "JSON Helper"
+		set todos to todos & (read JSON from srcJson)
+	end tell
+	return todos
+end get_todos
 
 on get_omnifocus_tasks(folder_name, flagged_needed, tag_filter)
 	set returnList to {}
