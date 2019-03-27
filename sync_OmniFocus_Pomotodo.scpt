@@ -5,13 +5,26 @@ property token : "token"
 
 set candidate_tasks to get_omnifocus_tasks(folder_name, flagged_needed, tag_filter)
 
-set pomotodos to get_todos(false)
+repeat with anOmniFocusTask in candidate_tasks
+	add_pomotodo_task(anOmniFocusTask)
+end repeat
+
+on add_pomotodo_task(omnifocus_task)
+	log "Adding task '" & name of omnifocus_task & "' to Pomotodos"
+	set uuid to ""
+	set postCommand to "curl --request 'POST' --header 'Authorization: token " & token & "' --header 'Content-Type: application/json' --data '{\"description\": \"" & name of omnifocus_task & "\"}' https://api.pomotodo.com/1/todos"
+	set postResponse to do shell script postCommand
+	tell application "JSON Helper"
+		set taskCreated to (read JSON from postResponse)
+		set uuid to uuid of taskCreated
+	end tell
+	return uuid
+end add_pomotodo_task
 
 on get_todos(completed_needed)
 	set todos to {}
 	set getCommand to "curl --request 'GET' --header 'Authorization: token " & token & "' https://api.pomotodo.com/1/todos?completed=" & completed_needed
 	set getResponse to do shell script getCommand
-	--set srcJson to read POSIX file (POSIX path of (path to home folder) & "null/todos.json")
 	set srcJson to getResponse
 	tell application "JSON Helper"
 		set todos to todos & (read JSON from srcJson)
