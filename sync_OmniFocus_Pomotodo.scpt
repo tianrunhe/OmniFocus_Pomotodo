@@ -5,8 +5,10 @@ property token : "token"
 
 set candidate_tasks to get_omnifocus_tasks(folder_name, flagged_needed, tag_filter)
 
+set mapping to {}
 repeat with anOmniFocusTask in candidate_tasks
-	add_pomotodo_task(anOmniFocusTask)
+	set uuid to add_pomotodo_task(anOmniFocusTask)
+	set mapping to mapping & {{key:uuid, value:id of anOmniFocusTask}}
 end repeat
 
 on add_pomotodo_task(omnifocus_task)
