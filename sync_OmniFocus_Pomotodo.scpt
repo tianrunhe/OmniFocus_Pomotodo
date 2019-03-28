@@ -4,17 +4,38 @@ property tag_filter : missing value
 property token : "token"
 
 set candidate_tasks to get_omnifocus_tasks(folder_name, flagged_needed, tag_filter)
+set todos to get_todos(false)
 
 set mapping to {}
+repeat with todo in todos
+	set uuid to uuid of todo
+	set splitStrings to my theSplit(|description| of todo, "|")
+	if (count of splitStrings) = 2 then
+		set omniFocus_id to last item of splitStrings
+		set mapping to mapping & {{key:uuid, value:omniFocus_id}}
+	end if
+end repeat
+
 repeat with anOmniFocusTask in candidate_tasks
-	set uuid to add_pomotodo_task(anOmniFocusTask)
-	set mapping to mapping & {{key:uuid, value:id of anOmniFocusTask}}
+	set omniFocus_id to id of anOmniFocusTask
+
+	set foundTask to false
+	repeat with aMapping in mapping
+		if value of aMapping = omniFocus_id then
+			set foundTask to true
+		end if
+	end repeat
+
+	if not foundTask then
+		add_pomotodo_task(anOmniFocusTask)
+	end if
+
 end repeat
 
 on add_pomotodo_task(omnifocus_task)
 	log "Adding task '" & name of omnifocus_task & "' to Pomotodos"
 	set uuid to ""
-	set postCommand to "curl --request 'POST' --header 'Authorization: token " & token & "' --header 'Content-Type: application/json' --data '{\"description\": \"" & name of omnifocus_task & " #" & folder_name & "\"}' https://api.pomotodo.com/1/todos"
+	set postCommand to "curl --request 'POST' --header 'Authorization: token " & token & "' --header 'Content-Type: application/json' --data '{\"description\": \"" & name of omnifocus_task & " #" & folder_name & " |" & id of omnifocus_task & "\"}' https://api.pomotodo.com/1/todos"
 	set postResponse to do shell script postCommand
 	tell application "JSON Helper"
 		set taskCreated to (read JSON from postResponse)
@@ -72,3 +93,16 @@ on get_omnifocus_tasks(folder_name, flagged_needed, tag_filter)
 	end tell
 	return returnList
 end get_omnifocus_tasks
+
+on theSplit(theString, theDelimiter)
+	-- save delimiters to restore old settings
+	set oldDelimiters to AppleScript's text item delimiters
+	-- set delimiters to delimiter to be used
+	set AppleScript's text item delimiters to theDelimiter
+	-- create the array
+	set theArray to every text item of theString
+	-- restore the old setting
+	set AppleScript's text item delimiters to oldDelimiters
+	-- return the result
+	return theArray
+end theSplit
