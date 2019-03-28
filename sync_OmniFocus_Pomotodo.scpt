@@ -14,7 +14,7 @@ end repeat
 on add_pomotodo_task(omnifocus_task)
 	log "Adding task '" & name of omnifocus_task & "' to Pomotodos"
 	set uuid to ""
-	set postCommand to "curl --request 'POST' --header 'Authorization: token " & token & "' --header 'Content-Type: application/json' --data '{\"description\": \"" & name of omnifocus_task & "\"}' https://api.pomotodo.com/1/todos"
+	set postCommand to "curl --request 'POST' --header 'Authorization: token " & token & "' --header 'Content-Type: application/json' --data '{\"description\": \"" & name of omnifocus_task & " #" & folder_name & "\"}' https://api.pomotodo.com/1/todos"
 	set postResponse to do shell script postCommand
 	tell application "JSON Helper"
 		set taskCreated to (read JSON from postResponse)
