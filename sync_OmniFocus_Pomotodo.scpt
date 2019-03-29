@@ -2,9 +2,11 @@ property folder_name : "Work"
 property flagged_needed : true
 property tag_filter : missing value
 property token : "token"
+property look_back_days : 7
 
 set candidate_tasks to get_omnifocus_tasks(folder_name, flagged_needed, tag_filter)
-set todos to get_todos(false)
+set completed_later_than_date to do shell script "date -v-" & look_back_days & "d '+%Y-%m-%d'"
+set todos to get_todos(missing value) & get_todos(completed_later_than_date)
 
 set mapping to {}
 repeat with todo in todos
@@ -12,7 +14,7 @@ repeat with todo in todos
 	set splitStrings to my theSplit(|description| of todo, "|")
 	if (count of splitStrings) = 2 then
 		set omniFocus_id to last item of splitStrings
-		set mapping to mapping & {{key:uuid, value:omniFocus_id}}
+		set mapping to mapping & {{key:uuid, value:omniFocus_id, completed:completed of todo}}
 	end if
 end repeat
 
@@ -20,14 +22,20 @@ repeat with anOmniFocusTask in candidate_tasks
 	set omniFocus_id to id of anOmniFocusTask
 
 	set foundTask to false
+	set completed to false
 	repeat with aMapping in mapping
 		if value of aMapping = omniFocus_id then
 			set foundTask to true
+			set completed to completed of aMapping
 		end if
 	end repeat
 
-	if not foundTask then
+	if not foundTask then -- new task in OmniFocus, need to add to Pomotodo
 		add_pomotodo_task(anOmniFocusTask)
+	else -- task is already synced to Pomoto
+		if completed then
+			mark_task_completed(anOmniFocusTask, folder_name)
+		end if
 	end if
 
 end repeat
@@ -44,9 +52,13 @@ on add_pomotodo_task(omnifocus_task)
 	return uuid
 end add_pomotodo_task
 
-on get_todos(completed_needed)
+on get_todos(completed_later_than_date)
 	set todos to {}
-	set getCommand to "curl --request 'GET' --header 'Authorization: token " & token & "' https://api.pomotodo.com/1/todos?completed=" & completed_needed
+	if completed_later_than_date is missing value then
+		set getCommand to "curl --request 'GET' --header 'Authorization: token " & token & "' https://api.pomotodo.com/1/todos"
+	else
+		set getCommand to "curl --request 'GET' --header 'Authorization: token " & token & "' https://api.pomotodo.com/1/todos?completed_later_than=" & completed_later_than_date
+	end if
 	set getResponse to do shell script getCommand
 	set srcJson to getResponse
 	tell application "JSON Helper"
@@ -106,3 +118,19 @@ on theSplit(theString, theDelimiter)
 	-- return the result
 	return theArray
 end theSplit
+
+on mark_task_completed(completed_task, folder_name)
+	tell application "OmniFocus"
+		tell default document
+			set projectList to flattened projects of folder named folder_name
+			repeat with aProject in projectList
+				set taskList to (flattened tasks of aProject whose completed is false)
+				repeat with aTask in taskList
+					if id of completed_task = id of aTask then
+						mark complete aTask
+					end if
+				end repeat
+			end repeat
+		end tell
+	end tell
+end mark_task_completed
