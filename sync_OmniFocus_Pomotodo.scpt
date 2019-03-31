@@ -1,4 +1,4 @@
-property folder_name : "Work"
+property folder_name : missing value
 property flagged_needed : true
 property tag_filter : missing value
 property token : "token"
@@ -8,6 +8,7 @@ set candidate_tasks to get_omnifocus_tasks(folder_name, flagged_needed, tag_filt
 set completed_later_than_date to do shell script "date -v-" & look_back_days & "d '+%Y-%m-%d'"
 set todos to get_todos(missing value) & get_todos(completed_later_than_date)
 
+-- create mapping between Pomotodo todo uuid -> OmniFocus task id
 set mapping to {}
 repeat with todo in todos
 	set uuid to uuid of todo
@@ -18,23 +19,29 @@ repeat with todo in todos
 	end if
 end repeat
 
+-- Iterate through OmniFocus task list, add new task to Pomotodo or mark task completed if it's completed in Pomotodo
 repeat with anOmniFocusTask in candidate_tasks
 	set omniFocus_id to id of anOmniFocusTask
 
 	set foundTask to false
 	set completed to false
+	set uuid to ""
 	repeat with aMapping in mapping
 		if value of aMapping = omniFocus_id then
 			set foundTask to true
 			set completed to completed of aMapping
+			set uuid to key of aMapping
 		end if
 	end repeat
 
 	if not foundTask then -- new task in OmniFocus, need to add to Pomotodo
 		add_pomotodo_task(anOmniFocusTask)
-	else -- task is already synced to Pomoto
+	else -- task is already synced to Pomotodo
 		if completed then
 			mark_task_completed(anOmniFocusTask, folder_name)
+		else
+			delete_todo(uuid)
+			add_pomotodo_task(anOmniFocusTask)
 		end if
 	end if
 
@@ -43,7 +50,7 @@ end repeat
 on add_pomotodo_task(omnifocus_task)
 	log "Adding task '" & name of omnifocus_task & "' to Pomotodos"
 	set uuid to ""
-	set postCommand to "curl --request 'POST' --header 'Authorization: token " & token & "' --header 'Content-Type: application/json' --data '{\"description\": \"" & name of omnifocus_task & " #" & folder_name & " |" & id of omnifocus_task & "\"}' https://api.pomotodo.com/1/todos"
+	set postCommand to "curl --request 'POST' --header 'Authorization: token " & token & "' --header 'Content-Type: application/json' --data '{\"description\": \"" & construct_todo_description(omnifocus_task, folder_name) & "\"}' https://api.pomotodo.com/1/todos"
 	set postResponse to do shell script postCommand
 	tell application "JSON Helper"
 		set taskCreated to (read JSON from postResponse)
@@ -51,6 +58,46 @@ on add_pomotodo_task(omnifocus_task)
 	end tell
 	return uuid
 end add_pomotodo_task
+
+on construct_todo_description(omnifocus_task, folder_name)
+	tell application "OmniFocus"
+		tell default document
+			if folder_name is missing value then
+				set projectList to flattened projects
+			else
+				set projectList to flattened projects of folder named folder_name
+			end if
+			repeat with aProject in projectList
+				set taskList to (flattened tasks of aProject whose completed is false)
+				repeat with aTask in taskList
+					if id of omnifocus_task = id of aTask then
+						set rootFolderName to folder of aProject
+
+						if rootFolderName is missing value then --- checking for root level projects
+							set rootFolderName to "n/a"
+							set foundRootFolderName to true
+						else
+							set foundRootFolderName to false
+						end if
+
+						repeat until foundRootFolderName is true
+							set upperFolder to container of rootFolderName
+							if name of upperFolder is equal to "OmniFocus" then
+								set rootFolderName to name of rootFolderName as string
+								set foundRootFolderName to true
+							else
+								set rootFolderName to upperFolder
+							end if
+						end repeat
+
+						set todo_description to name of omnifocus_task & " #" & rootFolderName & " |" & id of omnifocus_task
+					end if
+				end repeat
+			end repeat
+		end tell
+	end tell
+	return todo_description
+end construct_todo_description
 
 on get_todos(completed_later_than_date)
 	set todos to {}
@@ -67,11 +114,20 @@ on get_todos(completed_later_than_date)
 	return todos
 end get_todos
 
+on delete_todo(uuid)
+	set getCommand to "curl --request 'DELETE' --header 'Authorization: token " & token & "' https://api.pomotodo.com/1/todos/" & uuid
+	do shell script getCommand
+end delete_todo
+
 on get_omnifocus_tasks(folder_name, flagged_needed, tag_filter)
 	set returnList to {}
 	tell application "OmniFocus"
 		tell default document
-			set projectList to flattened projects of folder named folder_name
+			if folder_name is missing value then
+				set projectList to flattened projects
+			else
+				set projectList to flattened projects of folder named folder_name
+			end if
 			repeat with aProject in projectList
 				set taskList to (flattened tasks of aProject whose completed is false)
 				repeat with aTask in taskList
@@ -122,7 +178,11 @@ end theSplit
 on mark_task_completed(completed_task, folder_name)
 	tell application "OmniFocus"
 		tell default document
-			set projectList to flattened projects of folder named folder_name
+			if folder_name is missing value then
+				set projectList to flattened projects
+			else
+				set projectList to flattened projects of folder named folder_name
+			end if
 			repeat with aProject in projectList
 				set taskList to (flattened tasks of aProject whose completed is false)
 				repeat with aTask in taskList
@@ -134,3 +194,33 @@ on mark_task_completed(completed_task, folder_name)
 		end tell
 	end tell
 end mark_task_completed
+
+on encode_char(this_char)
+	set the ASCII_num to (the ASCII number this_char)
+	set the hex_list to {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F"}
+	set x to item ((ASCII_num div 16) + 1) of the hex_list
+	set y to item ((ASCII_num mod 16) + 1) of the hex_list
+	return ("%" & x & y) as string
+end encode_char
+
+on encode_text(this_text, encode_URL_A, encode_URL_B)
+	set the standard_characters to "abcdefghijklmnopqrstuvwxyz0123456789"
+	set the URL_A_chars to "$+!'/?;&@=#%><{}[]\"~`^\\|*"
+	set the URL_B_chars to ".-_:"
+	set the acceptable_characters to the standard_characters
+	if encode_URL_A is false then
+		set the acceptable_characters to the acceptable_characters & the URL_A_chars
+	end if
+	if encode_URL_B is false then
+		set the acceptable_characters to the acceptable_characters & the URL_B_chars
+	end if
+	set the encoded_text to ""
+	repeat with this_char in this_text
+		if this_char is in the acceptable_characters then
+			set the encoded_text to (the encoded_text & this_char)
+		else
+			set the encoded_text to (the encoded_text & encode_char(this_char)) as string
+		end if
+	end repeat
+	return the encoded_text
+end encode_text
