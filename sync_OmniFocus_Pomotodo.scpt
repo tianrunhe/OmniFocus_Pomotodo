@@ -15,7 +15,7 @@ repeat with todo in todos
 	set splitStrings to my theSplit(|description| of todo, "|")
 	if (count of splitStrings) = 2 then
 		set omniFocus_id to last item of splitStrings
-		set mapping to mapping & {{key:uuid, value:omniFocus_id, completed:completed of todo}}
+		set mapping to mapping & {{key:uuid, value:omniFocus_id, completed:completed of todo, name:|description| of todo}}
 	end if
 end repeat
 
@@ -26,11 +26,13 @@ repeat with anOmniFocusTask in candidate_tasks
 	set foundTask to false
 	set completed to false
 	set uuid to ""
+	set todoName to ""
 	repeat with aMapping in mapping
 		if value of aMapping = omniFocus_id then
 			set foundTask to true
 			set completed to completed of aMapping
 			set uuid to key of aMapping
+			set todoName to first item of theSplit(name of aMapping, " #")
 		end if
 	end repeat
 
@@ -40,8 +42,11 @@ repeat with anOmniFocusTask in candidate_tasks
 		if completed then
 			mark_task_completed(anOmniFocusTask, folder_name)
 		else
-			delete_todo(uuid)
-			add_pomotodo_task(anOmniFocusTask)
+			if name of anOmniFocusTask is not equal to todoName then
+				display alert "Name of the task has changed from " & todoName & " to " & name of anOmniFocusTask
+				delete_todo(uuid)
+				add_pomotodo_task(anOmniFocusTask)
+			end if
 		end if
 	end if
 
