@@ -52,6 +52,13 @@ repeat with anOmniFocusTask in candidate_tasks
 
 end repeat
 
+repeat with aMapping in mapping
+	if completed of aMapping is false and is_task_flagged(value of aMapping, folder_name) is false then
+		display alert "OmniFocus task " & name of aMapping & " is no longer flagged in OmniFocus, going to delete it from Pomotodo"
+		delete_todo(key of aMapping)
+	end if
+end repeat
+
 on add_pomotodo_task(omnifocus_task)
 	log "Adding task '" & name of omnifocus_task & "' to Pomotodos"
 	set uuid to ""
@@ -199,6 +206,27 @@ on mark_task_completed(completed_task, folder_name)
 		end tell
 	end tell
 end mark_task_completed
+
+on is_task_flagged(theTaskId, folder_name)
+	tell application "OmniFocus"
+		tell default document
+			if folder_name is missing value then
+				set projectList to flattened projects
+			else
+				set projectList to flattened projects of folder named folder_name
+			end if
+			repeat with aProject in projectList
+				set taskList to (flattened tasks of aProject whose completed is false)
+				repeat with aTask in taskList
+					if theTaskId = id of aTask then
+						return flagged of aTask
+					end if
+				end repeat
+			end repeat
+		end tell
+	end tell
+	return false
+end is_task_flagged
 
 on encode_char(this_char)
 	set the ASCII_num to (the ASCII number this_char)
