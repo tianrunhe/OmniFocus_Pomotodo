@@ -12,9 +12,8 @@ set todos to get_todos(missing value) & get_todos(completed_later_than_date)
 set mapping to {}
 repeat with todo in todos
 	set uuid to uuid of todo
-	set splitStrings to my theSplit(|description| of todo, "|")
-	if (count of splitStrings) = 2 then
-		set omniFocus_id to last item of splitStrings
+	set omniFocus_id to notice of todo
+	if omniFocus_id is not missing value then
 		set mapping to mapping & {{key:uuid, value:omniFocus_id, completed:completed of todo, name:|description| of todo}}
 	end if
 end repeat
@@ -43,7 +42,6 @@ repeat with anOmniFocusTask in candidate_tasks
 			mark_task_completed(anOmniFocusTask, folder_name)
 		else
 			if name of anOmniFocusTask is not equal to todoName then
-				display alert "Name of the task has changed from " & todoName & " to " & name of anOmniFocusTask
 				delete_todo(uuid)
 				add_pomotodo_task(anOmniFocusTask)
 			end if
@@ -54,7 +52,6 @@ end repeat
 
 repeat with aMapping in mapping
 	if completed of aMapping is false and is_task_flagged(value of aMapping, folder_name) is false then
-		display alert "OmniFocus task " & name of aMapping & " is no longer flagged in OmniFocus, going to delete it from Pomotodo"
 		delete_todo(key of aMapping)
 	end if
 end repeat
@@ -62,7 +59,7 @@ end repeat
 on add_pomotodo_task(omnifocus_task)
 	log "Adding task '" & name of omnifocus_task & "' to Pomotodos"
 	set uuid to ""
-	set postCommand to "curl --request 'POST' --header 'Authorization: token " & token & "' --header 'Content-Type: application/json' --data '{\"description\": \"" & construct_todo_description(omnifocus_task, folder_name) & "\"}' https://api.pomotodo.com/1/todos"
+	set postCommand to "curl --request 'POST' --header 'Authorization: token " & token & "' --header 'Content-Type: application/json' --data '{\"description\": \"" & construct_todo_description(omnifocus_task, folder_name) & "\", \"notice\": \"" & id of omnifocus_task & "\"}' https://api.pomotodo.com/1/todos"
 	set postResponse to do shell script postCommand
 	tell application "JSON Helper"
 		set taskCreated to (read JSON from postResponse)
@@ -102,7 +99,7 @@ on construct_todo_description(omnifocus_task, folder_name)
 							end if
 						end repeat
 
-						set todo_description to name of omnifocus_task & " #" & rootFolderName & " |" & id of omnifocus_task
+						set todo_description to name of omnifocus_task & " #" & rootFolderName
 					end if
 				end repeat
 			end repeat
