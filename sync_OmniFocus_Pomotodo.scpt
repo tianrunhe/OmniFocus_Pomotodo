@@ -54,6 +54,8 @@ repeat with aMapping in mapping
 	if completed of aMapping is false and is_task_flagged(value of aMapping, folder_name) is false then
 		delete_todo(key of aMapping)
 	end if
+	set todoName to first item of theSplit(name of aMapping, " #")
+	change_task_name(value of aMapping, folder_name, todoName)
 end repeat
 
 on add_pomotodo_task(omnifocus_task)
@@ -203,6 +205,26 @@ on mark_task_completed(completed_task, folder_name)
 		end tell
 	end tell
 end mark_task_completed
+
+on change_task_name(taskId, folder_name, new_name)
+	tell application "OmniFocus"
+		tell default document
+			if folder_name is missing value then
+				set projectList to flattened projects
+			else
+				set projectList to flattened projects of folder named folder_name
+			end if
+			repeat with aProject in projectList
+				set taskList to (flattened tasks of aProject whose completed is false)
+				repeat with aTask in taskList
+					if taskId = id of aTask then
+						set name of aTask to new_name
+					end if
+				end repeat
+			end repeat
+		end tell
+	end tell
+end change_task_name
 
 on is_task_flagged(theTaskId, folder_name)
 	tell application "OmniFocus"
